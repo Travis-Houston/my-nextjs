@@ -27,6 +27,7 @@ export interface ParsedData {
 interface FileUploadProps {
   onDataParsed?: (data: ParsedData) => void;
   onError?: (error: string) => void;
+  onFileSelected?: (file: File) => void; // Called when file is selected, for backend upload
   acceptedTypes?: string[];
   maxSizeMB?: number;
   className?: string;
@@ -245,6 +246,7 @@ function DataPreview({ data }: { data: ParsedData }) {
 export function FileUpload({
   onDataParsed,
   onError,
+  onFileSelected,
   acceptedTypes = DEFAULT_ACCEPTED_TYPES,
   maxSizeMB = DEFAULT_MAX_SIZE_MB,
   className,
@@ -288,6 +290,11 @@ export function FileUpload({
           throw new Error(`Invalid file type. Accepted: ${acceptedTypes.join(", ")}`);
         }
 
+        // Notify parent component that a file was selected (for backend upload)
+        if (onFileSelected) {
+          onFileSelected(file);
+        }
+
         setStatus("parsing");
         setProgress(30);
 
@@ -311,7 +318,7 @@ export function FileUpload({
         onError?.(message);
       }
     },
-    [onDataParsed, onError, maxSizeMB, acceptedTypes]
+    [onDataParsed, onError, onFileSelected, maxSizeMB, acceptedTypes]
   );
 
   const handleDrop = useCallback(

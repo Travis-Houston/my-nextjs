@@ -193,6 +193,18 @@ export interface EmployeeListResponse {
   total: number;
 }
 
+export interface Relationship {
+  source_id: string;
+  target_id: string;
+  strength: number;
+  type: string;
+}
+
+export interface PromotionParserResponse {
+  employees: BackendEmployee[];
+  relationships: Relationship[];
+}
+
 // API Error type
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -260,6 +272,29 @@ export const api = {
 
   // Performance
   getPerformance: () => fetchApi<PerformanceResponse>('/performance'),
+
+  // Upload CSV to backend for parsing
+  uploadCSV: async (file: File): Promise<PromotionParserResponse> => {
+    const url = `${API_BASE_URL}/promotion-parser`;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new ApiError(response.status, `API Error: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
 };
 
 export default api;

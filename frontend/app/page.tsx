@@ -16,6 +16,7 @@ export default function HomePage() {
     employees, 
     getEmployeeById, 
     importData, 
+    importFromBackend,
     getStats,
     importedData,
     loading,
@@ -52,6 +53,15 @@ export default function HomePage() {
     importData(data);
     setIsUploadVisible(false);
   }, [importData]);
+
+  const handleFileSelected = useCallback(async (file: File) => {
+    try {
+      await importFromBackend(file);
+      setIsUploadVisible(false);
+    } catch (err) {
+      console.error("Failed to upload CSV to backend:", err);
+    }
+  }, [importFromBackend]);
 
   const handleUploadError = useCallback((error: string) => {
     console.error("Upload error:", error);
@@ -117,7 +127,11 @@ export default function HomePage() {
 
         {/* File Upload Section */}
         {isUploadVisible && (
-          <FileUpload onDataParsed={handleDataParsed} onError={handleUploadError} />
+          <FileUpload 
+            onDataParsed={handleDataParsed} 
+            onFileSelected={handleFileSelected}
+            onError={handleUploadError} 
+          />
         )}
 
         {/* Stats Overview */}
