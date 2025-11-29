@@ -33,6 +33,30 @@ export interface EmployeeStats {
   reliability: number;
 }
 
+export interface ChatLog {
+  timestamp: string;
+  message: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+}
+
+export interface JiraTicket {
+  id: string;
+  title: string;
+  complexity: 'low' | 'medium' | 'high';
+  status: 'todo' | 'in_progress' | 'done';
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface CommitLog {
+  hash: string;
+  message: string;
+  timestamp: string;
+  files_changed: number;
+  lines_added: number;
+  lines_deleted: number;
+}
+
 export interface EmployeeDetail {
   // Identity & Role
   id: string;
@@ -56,6 +80,11 @@ export interface EmployeeDetail {
   tenure: string;
   recentAchievement?: string;
   avatar?: string;
+  // Rich data from backend
+  aiSummary?: string;
+  chatLogs?: ChatLog[];
+  jiraTickets?: JiraTicket[];
+  commitLogs?: CommitLog[];
 }
 
 interface EmployeeDetailCardProps {

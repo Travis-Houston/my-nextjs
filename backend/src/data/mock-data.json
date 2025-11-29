@@ -2,7 +2,7 @@
   "employees": [
     {
       "id": "1",
-      "name": "Sarah Chen",
+      "name": "Sarah2 Chen",
       "role": "Senior Backend Engineer",
       "avatar": "https://i.pravatar.cc/150?img=47",
       "skills": ["Node.js", "TypeScript", "PostgreSQL", "System Design", "Microservices"],

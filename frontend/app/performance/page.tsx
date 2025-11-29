@@ -3,42 +3,43 @@
 import { CyberpunkLayout } from "@/components/layout/cyberpunk-layout";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { Trophy, Medal, Award, Star, TrendingUp, Target, ArrowUp, ArrowDown } from "lucide-react";
+import { Trophy, Medal, Award, Star, TrendingUp, Target, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 export default function PerformancePage() {
-  const { employees } = useStore();
+  const { performance, fetchPerformance, loading } = useStore();
 
-  const rankings = useMemo(() => {
-    return [...employees]
-      .sort((a, b) => b.impactScore - a.impactScore)
-      .map((emp, index) => ({ ...emp, rank: index + 1 }));
-  }, [employees]);
+  useEffect(() => {
+    fetchPerformance();
+  }, [fetchPerformance]);
 
-  const topPerformers = rankings.slice(0, 3);
-  const restOfTeam = rankings.slice(3);
+  const topPerformers = useMemo(() => {
+    if (!performance) return [];
+    return performance.leaderboard.slice(0, 3);
+  }, [performance]);
+
+  const restOfTeam = useMemo(() => {
+    if (!performance) return [];
+    return performance.leaderboard.slice(3);
+  }, [performance]);
 
   const departmentScores = useMemo(() => {
-    const deptData: Record<string, { sum: number; count: number; employees: typeof employees }> = {};
-    employees.forEach((e) => {
-      if (!deptData[e.department]) {
-        deptData[e.department] = { sum: 0, count: 0, employees: [] };
-      }
-      deptData[e.department].sum += e.impactScore;
-      deptData[e.department].count++;
-      deptData[e.department].employees.push(e);
-    });
-    return Object.entries(deptData)
-      .map(([dept, data]) => ({
-        department: dept,
-        avgScore: Math.round(data.sum / data.count),
-        count: data.count,
-        topPerformer: data.employees.sort((a, b) => b.impactScore - a.impactScore)[0],
-      }))
-      .sort((a, b) => b.avgScore - a.avgScore);
-  }, [employees]);
+    if (!performance) return [];
+    return performance.departmentRankings;
+  }, [performance]);
+
+  if (loading || !performance) {
+    return (
+      <CyberpunkLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          <span className="ml-3 text-gray-400">Loading performance data from server...</span>
+        </div>
+      </CyberpunkLayout>
+    );
+  }
 
   const getRankBg = (rank: number) => {
     switch (rank) {
@@ -154,7 +155,7 @@ export default function PerformancePage() {
                   </span>
                   <div className="flex-1">
                     <p className="text-white font-medium">{dept.department}</p>
-                    <p className="text-gray-500 text-sm">{dept.count} employees</p>
+                    <p className="text-gray-500 text-sm">{dept.employeeCount} employees</p>
                   </div>
                   <div className="text-right">
                     <p className="text-purple-400 font-semibold">{dept.avgScore}</p>
@@ -181,7 +182,7 @@ export default function PerformancePage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-white text-sm">{emp.name}</p>
-                      <p className="text-gray-500 text-xs">{emp.department}</p>
+                      <p className="text-gray-500 text-xs">{emp.role}</p>
                     </div>
                     <span className="text-purple-400 font-semibold">{emp.impactScore}</span>
                   </div>
@@ -194,10 +195,10 @@ export default function PerformancePage() {
         {/* Performance Metrics */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Average Score", value: Math.round(employees.reduce((a, b) => a + b.impactScore, 0) / employees.length), icon: TrendingUp, change: "+5.2%", up: true },
-            { label: "Top Performers", value: employees.filter((e) => e.impactScore >= 80).length, icon: Trophy, change: "+3", up: true },
-            { label: "Needs Improvement", value: employees.filter((e) => e.impactScore < 50).length, icon: Target, change: "-2", up: false },
-            { label: "Rising Stars", value: employees.filter((e) => e.impactScore >= 60 && e.impactScore < 80).length, icon: Star, change: "+4", up: true },
+            { label: "Average Score", value: Math.round(performance.leaderboard.reduce((a, b) => a + b.impactScore, 0) / performance.leaderboard.length) || 0, icon: TrendingUp, change: "+5.2%", up: true },
+            { label: "Top Performers", value: performance.leaderboard.filter((e) => e.impactScore >= 80).length, icon: Trophy, change: "+3", up: true },
+            { label: "Needs Improvement", value: performance.leaderboard.filter((e) => e.impactScore < 50).length, icon: Target, change: "-2", up: false },
+            { label: "Rising Stars", value: performance.leaderboard.filter((e) => e.impactScore >= 60 && e.impactScore < 80).length, icon: Star, change: "+4", up: true },
           ].map((metric) => (
             <div key={metric.label} className="p-4 rounded-xl bg-gray-900/50 border border-white/10">
               <div className="flex items-center justify-between mb-2">

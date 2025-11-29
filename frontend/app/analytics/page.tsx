@@ -7,68 +7,62 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Line, Area, AreaChart
 } from "recharts";
-import { useMemo } from "react";
-import { TrendingUp, TrendingDown, Users, AlertTriangle, Zap } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { TrendingUp, TrendingDown, Users, AlertTriangle, Zap, Loader2 } from "lucide-react";
 
 const COLORS = ["#8b5cf6", "#2dd4bf", "#ec4899", "#22d3ee", "#f59e0b", "#10b981"];
+const BURNOUT_COLORS = { High: "#ef4444", Medium: "#f59e0b", Low: "#10b981" };
 
 export default function AnalyticsPage() {
-  const { employees, getStats } = useStore();
-  const stats = getStats();
+  const { analytics, fetchAnalytics, loading } = useStore();
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   const departmentData = useMemo(() => {
-    const deptCounts: Record<string, number> = {};
-    employees.forEach((e) => {
-      deptCounts[e.department] = (deptCounts[e.department] || 0) + 1;
-    });
-    return Object.entries(deptCounts).map(([name, value]) => ({ name, value }));
-  }, [employees]);
+    if (!analytics) return [];
+    return analytics.departments.map((d) => ({ name: d.department, value: d.count }));
+  }, [analytics]);
 
   const burnoutDistribution = useMemo(() => {
-    const high = employees.filter((e) => e.burnoutRisk >= 70).length;
-    const medium = employees.filter((e) => e.burnoutRisk >= 40 && e.burnoutRisk < 70).length;
-    const low = employees.filter((e) => e.burnoutRisk < 40).length;
-    return [
-      { name: "High Risk", value: high, color: "#ef4444" },
-      { name: "Medium Risk", value: medium, color: "#f59e0b" },
-      { name: "Low Risk", value: low, color: "#10b981" },
-    ];
-  }, [employees]);
+    if (!analytics) return [];
+    return analytics.burnoutDistribution.map((b) => ({
+      name: `${b.level} Risk`,
+      value: b.count,
+      color: BURNOUT_COLORS[b.level as keyof typeof BURNOUT_COLORS] || "#6b7280",
+    }));
+  }, [analytics]);
 
   const impactDistribution = useMemo(() => {
-    const ranges = [
-      { range: "0-20", min: 0, max: 20 },
-      { range: "21-40", min: 21, max: 40 },
-      { range: "41-60", min: 41, max: 60 },
-      { range: "61-80", min: 61, max: 80 },
-      { range: "81-100", min: 81, max: 100 },
-    ];
-    return ranges.map(({ range, min, max }) => ({
-      range,
-      count: employees.filter((e) => e.impactScore >= min && e.impactScore <= max).length,
+    if (!analytics) return [];
+    return analytics.levelDistribution.map((l) => ({
+      range: l.level,
+      count: l.count,
     }));
-  }, [employees]);
+  }, [analytics]);
 
-  const locationData = useMemo(() => {
-    const locCounts: Record<string, number> = {};
-    employees.forEach((e) => {
-      if (e.location) {
-        locCounts[e.location] = (locCounts[e.location] || 0) + 1;
-      }
-    });
-    return Object.entries(locCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [employees]);
+  const monthlyTrend = useMemo(() => {
+    if (!analytics) return [];
+    return analytics.trends.map((t) => ({
+      month: t.month,
+      headcount: t.headcount,
+      avgImpact: t.avgPerformance,
+    }));
+  }, [analytics]);
 
-  const monthlyTrend = [
-    { month: "Jul", headcount: 98, avgImpact: 68 },
-    { month: "Aug", headcount: 105, avgImpact: 70 },
-    { month: "Sep", headcount: 112, avgImpact: 72 },
-    { month: "Oct", headcount: 118, avgImpact: 74 },
-    { month: "Nov", headcount: 124, avgImpact: 75 },
-    { month: "Dec", headcount: employees.length, avgImpact: stats.avgImpact },
-  ];
+  if (loading || !analytics) {
+    return (
+      <CyberpunkLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          <span className="ml-3 text-gray-400">Loading analytics from server...</span>
+        </div>
+      </CyberpunkLayout>
+    );
+  }
+
+  const stats = analytics.overview;
 
   return (
     <CyberpunkLayout>
@@ -82,8 +76,8 @@ export default function AnalyticsPage() {
         {/* Quick Stats */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { icon: Users, label: "Total Employees", value: stats.total, trend: "+12%", up: true },
-            { icon: Zap, label: "Avg Impact Score", value: stats.avgImpact, trend: "+5.2%", up: true },
+            { icon: Users, label: "Total Employees", value: stats.totalEmployees, trend: "+12%", up: true },
+            { icon: Zap, label: "Avg Impact Score", value: stats.avgImpactScore, trend: "+5.2%", up: true },
             { icon: TrendingUp, label: "High Performers", value: stats.highPerformers, trend: "+8%", up: true },
             { icon: AlertTriangle, label: "Burnout Alerts", value: stats.burnoutAlerts, trend: "-3", up: false },
           ].map((stat) => (
@@ -216,21 +210,21 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           </div>
 
-          {/* Location Breakdown */}
+          {/* Department Performance */}
           <div className="p-6 rounded-2xl bg-gray-900/50 border border-white/10">
-            <h3 className="text-lg font-semibold text-white mb-4">Employees by Location</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Department Performance</h3>
             <div className="space-y-3">
-              {locationData.map((loc, index) => (
-                <div key={loc.name}>
+              {analytics.departments.map((dept, index) => (
+                <div key={dept.department}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-gray-300 text-sm">{loc.name}</span>
-                    <span className="text-gray-500 text-sm">{loc.value}</span>
+                    <span className="text-gray-300 text-sm">{dept.department}</span>
+                    <span className="text-gray-500 text-sm">Avg: {dept.avgImpact}</span>
                   </div>
                   <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{
-                        width: `${(loc.value / employees.length) * 100}%`,
+                        width: `${dept.avgImpact}%`,
                         backgroundColor: COLORS[index % COLORS.length],
                       }}
                     />
