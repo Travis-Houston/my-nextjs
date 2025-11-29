@@ -1,19 +1,19 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { CyberpunkLayout } from "@/components/layout/cyberpunk-layout";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, Mail, MapPin, Calendar, Building, Users, Award,
-  AlertTriangle, TrendingUp, Zap, Clock, Send
+  AlertTriangle, TrendingUp, Zap, Clock, Send, Loader2
 } from "lucide-react";
 import Link from "next/link";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip
 } from "recharts";
-import { useState } from "react";
+import type { EmployeeDetail } from "@/components/features/dashboard/employee-detail-card";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -21,11 +21,40 @@ interface PageProps {
 
 export default function EmployeeProfilePage({ params }: PageProps) {
   const { id } = use(params);
-  const { getEmployeeById, employees } = useStore();
+  const { getEmployeeById, employees, fetchEmployeeDetail } = useStore();
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
+  const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const employee = getEmployeeById(id);
+  useEffect(() => {
+    const loadEmployee = async () => {
+      setLoading(true);
+      // First try cache
+      let emp: EmployeeDetail | null | undefined = getEmployeeById(id);
+      
+      // If not in cache, fetch from backend
+      if (!emp) {
+        emp = await fetchEmployeeDetail(id);
+      }
+      
+      setEmployee(emp || null);
+      setLoading(false);
+    };
+    
+    loadEmployee();
+  }, [id, getEmployeeById, fetchEmployeeDetail]);
+
+  if (loading) {
+    return (
+      <CyberpunkLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          <span className="ml-3 text-gray-400">Loading employee data from server...</span>
+        </div>
+      </CyberpunkLayout>
+    );
+  }
 
   if (!employee) {
     return (

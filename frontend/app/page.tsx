@@ -7,7 +7,7 @@ import { EmployeeDetailCard } from "@/components/features/dashboard/employee-det
 import { FileUpload, type ParsedData } from "@/components/features/dashboard/file-upload";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import type { Employee } from "@/components/features/dashboard/network-graph";
 import type { EmployeeDetail } from "@/components/features/dashboard/employee-detail-card";
 
@@ -17,7 +17,10 @@ export default function HomePage() {
     getEmployeeById, 
     importData, 
     getStats,
-    importedData 
+    importedData,
+    loading,
+    error,
+    fetchEmployeeDetail,
   } = useStore();
   
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeDetail | null>(null);
@@ -26,13 +29,20 @@ export default function HomePage() {
 
   const stats = getStats();
 
-  const handleNodeClick = useCallback((employee: Employee) => {
-    const detail = getEmployeeById(employee.id);
+  const handleNodeClick = useCallback(async (employee: Employee) => {
+    // First try to get from cache
+    let detail: EmployeeDetail | null | undefined = getEmployeeById(employee.id);
+    
+    // If not in cache, fetch from backend
+    if (!detail) {
+      detail = await fetchEmployeeDetail(employee.id);
+    }
+    
     if (detail) {
       setSelectedEmployee(detail);
       setIsCardOpen(true);
     }
-  }, [getEmployeeById]);
+  }, [getEmployeeById, fetchEmployeeDetail]);
 
   const handleCardClose = useCallback(() => {
     setIsCardOpen(false);
@@ -78,6 +88,23 @@ export default function HomePage() {
             {isUploadVisible ? "Hide Upload" : "Import Data"}
           </button>
         </div>
+
+        {/* Loading State */}
+        {loading && employees.length === 0 && (
+          <div className="flex items-center justify-center p-8 rounded-xl bg-gray-900/50 border border-white/10">
+            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            <span className="ml-3 text-gray-400">Loading data from server...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+            <p className="text-red-300 text-sm">
+              <span className="font-semibold">Error:</span> {error}. Make sure the backend server is running on port 3002.
+            </p>
+          </div>
+        )}
 
         {/* Data Status */}
         {importedData && (

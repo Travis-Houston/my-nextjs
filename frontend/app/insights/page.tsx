@@ -5,81 +5,52 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
   Brain, AlertTriangle, TrendingUp, Users, Lightbulb, Target,
-  ArrowRight, Sparkles, Shield, Heart
+  ArrowRight, Sparkles, Shield, Heart, Loader2
 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
 export default function InsightsPage() {
-  const { employees, getStats } = useStore();
-  const stats = getStats();
+  const { insights, fetchInsights, loading, analytics, fetchAnalytics } = useStore();
 
-  const insights = useMemo(() => {
-    const highBurnout = employees.filter((e) => e.burnoutRisk >= 70);
-    const topPerformers = employees.filter((e) => e.impactScore >= 85);
-    const newHires = employees.filter((e) => {
-      const joinDate = new Date(e.joinDate);
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      return joinDate > sixMonthsAgo;
-    });
+  useEffect(() => {
+    fetchInsights();
+    fetchAnalytics();
+  }, [fetchInsights, fetchAnalytics]);
 
-    const deptPerformance: Record<string, { total: number; sum: number }> = {};
-    employees.forEach((e) => {
-      if (!deptPerformance[e.department]) {
-        deptPerformance[e.department] = { total: 0, sum: 0 };
-      }
-      deptPerformance[e.department].total++;
-      deptPerformance[e.department].sum += e.impactScore;
-    });
-
-    const topDept = Object.entries(deptPerformance)
-      .map(([dept, data]) => ({ dept, avg: data.sum / data.total }))
-      .sort((a, b) => b.avg - a.avg)[0];
-
-    return {
-      highBurnout,
-      topPerformers,
-      newHires,
-      topDept,
+  const aiRecommendations = useMemo(() => {
+    if (!insights) return [];
+    
+    const iconMap: Record<string, typeof Shield> = {
+      warning: AlertTriangle,
+      recognition: TrendingUp,
+      growth: Users,
+      support: Shield,
     };
-  }, [employees]);
 
-  const aiRecommendations = [
-    {
-      icon: Shield,
-      title: "Burnout Prevention",
-      description: `${insights.highBurnout.length} employees showing high burnout risk. Consider workload redistribution and wellness check-ins.`,
-      priority: "high",
-      action: "View at-risk employees",
-      link: "/personnel?burnout=high",
-    },
-    {
-      icon: TrendingUp,
-      title: "Growth Opportunities",
-      description: `${insights.topPerformers.length} high performers identified. Consider leadership development programs.`,
-      priority: "medium",
-      action: "View top performers",
-      link: "/performance",
-    },
-    {
-      icon: Users,
-      title: "New Hire Integration",
-      description: `${insights.newHires.length} new hires in the last 6 months. Ensure proper onboarding and mentorship.`,
-      priority: "low",
-      action: "View new hires",
-      link: "/personnel",
-    },
-    {
-      icon: Target,
-      title: "Team Performance",
-      description: `${insights.topDept?.dept || "Engineering"} is the top performing department with ${Math.round(insights.topDept?.avg || 0)} avg impact score.`,
-      priority: "info",
-      action: "View analytics",
-      link: "/analytics",
-    },
-  ];
+    return insights.recommendations.map((rec) => ({
+      icon: iconMap[rec.type] || Target,
+      title: rec.title,
+      description: rec.description,
+      priority: rec.priority,
+      action: rec.actionUrl ? "View Details" : "View",
+      link: rec.actionUrl || "/personnel",
+    }));
+  }, [insights]);
+
+  if (loading || !insights) {
+    return (
+      <CyberpunkLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          <span className="ml-3 text-gray-400">Loading AI insights from server...</span>
+        </div>
+      </CyberpunkLayout>
+    );
+  }
+
+  const stats = analytics?.overview || { totalEmployees: 0, avgImpactScore: 0, burnoutAlerts: 0, highPerformers: 0 };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -120,8 +91,8 @@ export default function InsightsPage() {
             <div>
               <h2 className="text-xl font-semibold text-white mb-2">Workforce Health Summary</h2>
               <p className="text-gray-300 leading-relaxed">
-                Your organization has <span className="text-purple-400 font-semibold">{stats.total} employees</span> with an 
-                average impact score of <span className="text-teal-400 font-semibold">{stats.avgImpact}</span>. 
+                Your organization has <span className="text-purple-400 font-semibold">{stats.totalEmployees} employees</span> with an 
+                average impact score of <span className="text-teal-400 font-semibold">{stats.avgImpactScore}</span>. 
                 Currently, <span className="text-red-400 font-semibold">{stats.burnoutAlerts} employees</span> are 
                 flagged for high burnout risk and require immediate attention. 
                 <span className="text-purple-400 font-semibold"> {stats.highPerformers} high performers</span> have 
@@ -169,14 +140,14 @@ export default function InsightsPage() {
         </div>
 
         {/* At-Risk Employees */}
-        {insights.highBurnout.length > 0 && (
+        {insights.atRiskEmployees.length > 0 && (
           <div className="p-6 rounded-2xl bg-gray-900/50 border border-white/10">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-400" />
               Employees Requiring Attention
             </h3>
             <div className="grid grid-cols-3 gap-4">
-              {insights.highBurnout.slice(0, 6).map((emp) => (
+              {insights.atRiskEmployees.slice(0, 6).map((emp) => (
                 <Link key={emp.id} href={`/personnel/${emp.id}`}>
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 hover:border-red-500/40 transition-colors">
                     <div className="flex items-center gap-3">
@@ -190,8 +161,11 @@ export default function InsightsPage() {
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-red-400 text-sm">Burnout Risk</span>
-                      <span className="text-red-400 font-semibold">{emp.burnoutRisk}%</span>
+                      <span className="text-red-400 font-semibold">{emp.burnoutScore}%</span>
                     </div>
+                    {emp.riskFactors.length > 0 && (
+                      <p className="text-gray-500 text-xs mt-2 truncate">{emp.riskFactors[0]}</p>
+                    )}
                   </div>
                 </Link>
               ))}

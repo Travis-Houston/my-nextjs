@@ -1,3 +1,6 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
+
+// Types matching backend interfaces
 export interface ChatLog {
   timestamp: string;
   message: string;
@@ -22,7 +25,7 @@ export interface CommitLog {
   lines_deleted: number;
 }
 
-export interface Employee {
+export interface BackendEmployee {
   id: string;
   name: string;
   role: string;
@@ -33,40 +36,23 @@ export interface Employee {
   chat_logs: ChatLog[];
   jira_tickets: JiraTicket[];
   commit_logs: CommitLog[];
-  // CSV Fields - Identity & Role
   Employee_ID: string;
   Current_Role: string;
   Level: string;
   Tenure_Months: number;
-  // CSV Fields - Shadow Leader Signals
   Unassigned_Tasks_Picked: number;
   Help_Request_Replies: number;
   Cross_Team_Collaborations: number;
   Critical_Incident_Ownership: number;
-  // CSV Fields - Quality over Quantity
   Peer_Review_Score: number;
   Architectural_Changes: number;
   Avg_Task_Complexity: number;
   Tasks_Completed_Count: number;
-  // CSV Fields - Burnout Indicators
   Late_Night_Commits: number;
   Weekend_Activity_Log: number;
   Vacation_Days_Unused: number;
   Sentiment_Trend: number;
-  // CSV Fields - The Golden Column
   Raw_Achievement_Log: string;
-}
-
-export interface Relationship {
-  source_id: string;
-  target_id: string;
-  strength: number;
-  type: 'mentorship' | 'collaboration' | 'recognition' | 'support';
-}
-
-export interface MockData {
-  employees: Employee[];
-  relationships: Relationship[];
 }
 
 export interface NetworkNode {
@@ -76,8 +62,6 @@ export interface NetworkNode {
   avatar: string;
   burnout_risk: string;
   impact_score: number;
-  x?: number;
-  y?: number;
 }
 
 export interface NetworkLink {
@@ -93,13 +77,12 @@ export interface NetworkGraph {
 }
 
 export interface EmployeeDetail {
-  employee: Employee;
+  employee: BackendEmployee;
   ai_summary: string;
   calculated_burnout_score: number;
   calculated_impact_score: number;
 }
 
-// Analytics Interfaces
 export interface AnalyticsOverview {
   totalEmployees: number;
   avgImpactScore: number;
@@ -122,7 +105,7 @@ export interface BurnoutDistribution {
   percentage: number;
 }
 
-export interface LocationBreakdown {
+export interface LevelDistribution {
   level: string;
   count: number;
 }
@@ -137,11 +120,10 @@ export interface AnalyticsResponse {
   overview: AnalyticsOverview;
   departments: DepartmentStats[];
   burnoutDistribution: BurnoutDistribution[];
-  levelDistribution: LocationBreakdown[];
+  levelDistribution: LevelDistribution[];
   trends: TrendData[];
 }
 
-// Insights Interfaces
 export interface Recommendation {
   id: string;
   type: 'recognition' | 'support' | 'growth' | 'warning';
@@ -169,7 +151,6 @@ export interface InsightsResponse {
   hiddenGems: EmployeeDetail[];
 }
 
-// Performance Interfaces
 export interface LeaderboardEntry {
   rank: number;
   id: string;
@@ -193,15 +174,6 @@ export interface PerformanceResponse {
   departmentRankings: DepartmentRanking[];
 }
 
-// Employee List with filters
-export interface EmployeeListParams {
-  search?: string;
-  department?: string;
-  burnoutRisk?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
 export interface EmployeeListItem {
   id: string;
   name: string;
@@ -221,3 +193,73 @@ export interface EmployeeListResponse {
   total: number;
 }
 
+// API Error type
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+// Fetch wrapper with error handling
+async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, `API Error: ${response.statusText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(500, `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// API Functions
+export const api = {
+  // Dashboard - Network Graph
+  getDashboard: () => fetchApi<NetworkGraph>('/dashboard'),
+
+  // Employee Detail
+  getEmployee: (id: string) => fetchApi<EmployeeDetail>(`/employee/${id}`),
+
+  // Employee List with filtering
+  getEmployees: (params?: {
+    search?: string;
+    department?: string;
+    burnoutRisk?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.set('search', params.search);
+    if (params?.department) searchParams.set('department', params.department);
+    if (params?.burnoutRisk) searchParams.set('burnoutRisk', params.burnoutRisk);
+    if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
+    if (params?.sortOrder) searchParams.set('sortOrder', params.sortOrder);
+    
+    const query = searchParams.toString();
+    return fetchApi<EmployeeListResponse>(`/employees${query ? `?${query}` : ''}`);
+  },
+
+  // Analytics
+  getAnalytics: () => fetchApi<AnalyticsResponse>('/analytics'),
+
+  // Insights
+  getInsights: () => fetchApi<InsightsResponse>('/insights'),
+
+  // Performance
+  getPerformance: () => fetchApi<PerformanceResponse>('/performance'),
+};
+
+export default api;
