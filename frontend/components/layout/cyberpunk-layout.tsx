@@ -50,8 +50,9 @@ function Logo({ isExpanded }: { isExpanded: boolean }) {
           "font-bold text-xl"
         )}
       >
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-teal-500 flex items-center justify-center">
-          <Brain className="w-6 h-6 text-white" />
+        <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center bg-transparent">
+          {/* Use the provided logo image (place frontend/public/logo.png) */}
+          <img src="/favicon.png" alt="Luminus.ai" className="w-full h-full object-cover" />
         </div>
         <motion.span
           initial={{ opacity: 0 }}
