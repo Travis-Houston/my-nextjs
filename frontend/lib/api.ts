@@ -193,6 +193,58 @@ export interface EmployeeListResponse {
   total: number;
 }
 
+// File Upload Response Types
+export interface UploadedEmployee {
+  id: string;
+  employeeCode: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  team: string;
+  managerId: string | null;
+  joinDate: string;
+  location: string;
+  impactScore: number;
+  burnoutRisk: number;
+  collaborators: string[];
+}
+
+export interface UploadedEmployeeStats {
+  technical: number;
+  leadership: number;
+  empathy: number;
+  velocity: number;
+  creativity: number;
+  reliability: number;
+}
+
+export interface UploadedEmployeeDetail {
+  id: string;
+  employeeCode: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  team: string;
+  managerId: string | null;
+  managerName: string | null;
+  joinDate: string;
+  location: string;
+  impactScore: number;
+  burnoutRisk: number;
+  stats: UploadedEmployeeStats;
+  projects: number;
+  collaborators: number;
+  tenure: string;
+  recentAchievement?: string;
+}
+
+export interface FileUploadResponse {
+  employees: UploadedEmployee[];
+  employeeDetails: Record<string, UploadedEmployeeDetail>;
+}
+
 // API Error type
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -201,15 +253,23 @@ export class ApiError extends Error {
   }
 }
 
-// Fetch wrapper with error handling
+// Get auth token from localStorage
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('luminus_auth_token');
+}
+
+// Fetch wrapper with error handling and auth
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  const token = getAuthToken();
   
   try {
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options?.headers,
       },
     });
@@ -260,6 +320,36 @@ export const api = {
 
   // Performance
   getPerformance: () => fetchApi<PerformanceResponse>('/performance'),
+
+  // File Upload - sends CSV file to backend for parsing
+  uploadFile: async (file: File): Promise<FileUploadResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `${API_BASE_URL}/promotion-parser`;
+    const token = getAuthToken();
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        // Don't set Content-Type header - browser will set it with boundary
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(response.status, errorText || response.statusText);
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
 };
 
 export default api;

@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import type { Employee } from "@/components/features/dashboard/network-graph";
 import type { EmployeeDetail } from "@/components/features/dashboard/employee-detail-card";
 import type { ParsedData } from "@/components/features/dashboard/file-upload";
-import { api, NetworkGraph, AnalyticsResponse, InsightsResponse, PerformanceResponse } from "./api";
+import { api, NetworkGraph, AnalyticsResponse, InsightsResponse, PerformanceResponse, FileUploadResponse } from "./api";
 
 // Default empty data (will be populated from API)
 const DEFAULT_EMPLOYEES: Employee[] = [];
@@ -38,6 +38,7 @@ interface StoreContextType {
   fetchInsights: () => Promise<void>;
   fetchPerformance: () => Promise<void>;
   fetchEmployeeDetail: (id: string) => Promise<EmployeeDetail | null>;
+  uploadFile: (file: File) => Promise<FileUploadResponse | null>;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -188,6 +189,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Upload file to backend
+  const uploadFile = useCallback(async (file: File): Promise<FileUploadResponse | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.uploadFile(file);
+      
+      // Transform uploaded employees to store format
+      const newEmployees: Employee[] = response.employees.map((emp) => ({
+        id: emp.id,
+        employeeCode: emp.employeeCode,
+        name: emp.name,
+        email: emp.email,
+        role: emp.role,
+        department: emp.department,
+        team: emp.team,
+        managerId: emp.managerId,
+        joinDate: emp.joinDate,
+        location: emp.location,
+        impactScore: emp.impactScore,
+        burnoutRisk: emp.burnoutRisk,
+        collaborators: emp.collaborators,
+      }));
+      
+      // Transform uploaded employee details to store format
+      const newDetails: Record<string, EmployeeDetail> = {};
+      Object.entries(response.employeeDetails).forEach(([id, detail]) => {
+        newDetails[id] = {
+          id: detail.id,
+          employeeCode: detail.employeeCode,
+          name: detail.name,
+          email: detail.email,
+          role: detail.role,
+          department: detail.department,
+          team: detail.team,
+          managerId: detail.managerId,
+          managerName: detail.managerName,
+          joinDate: detail.joinDate,
+          location: detail.location,
+          impactScore: detail.impactScore,
+          burnoutRisk: detail.burnoutRisk,
+          stats: detail.stats,
+          projects: detail.projects,
+          collaborators: detail.collaborators,
+          tenure: detail.tenure,
+          recentAchievement: detail.recentAchievement,
+        };
+      });
+      
+      setEmployees(newEmployees);
+      setEmployeeDetails(newDetails);
+      setLoading(false);
+      return response;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to upload file';
+      setError(errorMsg);
+      setLoading(false);
+      return null;
+    }
+  }, []);
+
   // Fetch initial data on mount
   useEffect(() => {
     fetchDashboard();
@@ -304,6 +366,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         fetchInsights,
         fetchPerformance,
         fetchEmployeeDetail,
+        uploadFile,
       }}
     >
       {children}
