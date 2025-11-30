@@ -215,12 +215,6 @@ export default function InsightsPage() {
                 </motion.p>
               ) : (
                 <p className="text-gray-300 leading-relaxed">
-                  Your organization has <span className="text-purple-400 font-semibold">{stats.totalEmployees} employees</span> with an 
-                  average impact score of <span className="text-teal-400 font-semibold">{stats.avgImpactScore}</span>. 
-                  Currently, <span className="text-red-400 font-semibold">{stats.burnoutAlerts} employees</span> are 
-                  flagged for high burnout risk and require immediate attention. 
-                  <span className="text-purple-400 font-semibold"> {stats.highPerformers} high performers</span> have 
-                  been identified as potential candidates for leadership roles.
                 </p>
               )}
             </div>

@@ -11,54 +11,57 @@ import {
 } from "recharts";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { TrendingUp, TrendingDown, Users, AlertTriangle, Zap, Loader2, Cpu, Brain } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const COLORS = ["#8b5cf6", "#2dd4bf", "#ec4899", "#22d3ee", "#f59e0b", "#10b981"];
 const BURNOUT_COLORS = { High: "#ef4444", Medium: "#f59e0b", Low: "#10b981" };
 
 export default function AnalyticsPage() {
   const { analytics, fetchAnalytics, loading, employees } = useStore();
-  const { analyzePerformance, departmentInsights, overallHealth, isProcessing } = useAI();
+  const { analyzePerformance, overallHealth, isProcessing } = useAI(); // Removed departmentInsights to reduce clutter if unused
+  
+  // -- STATE MANAGEMENT --
   const [useRealAI, setUseRealAI] = useState(false);
   const [aiAnalyzed, setAiAnalyzed] = useState(false);
   const [showWorkforceSummary, setShowWorkforceSummary] = useState(false);
-  const processingTimerRef = useRef<number | null>(null);
+  
+  // Timer ref to handle cleanup
+  const processingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  // Run AI analysis when toggled
-  useEffect(() => {
-    if (useRealAI && employees.length > 0 && !aiAnalyzed) {
-      analyzePerformance(employees).then(() => setAiAnalyzed(true));
-    }
-  }, [useRealAI, employees, analyzePerformance, aiAnalyzed]);
-
-  // Simulate a 4s processing delay for showing the Workforce Health Summary
+  // -- AI & TIMER LOGIC --
   useEffect(() => {
     if (useRealAI) {
-      // reset visible summary while processing
-      setShowWorkforceSummary(false);
-      processingTimerRef.current = window.setTimeout(() => {
-        setShowWorkforceSummary(true);
-      }, 4000);
-    } else {
-      if (processingTimerRef.current) {
-        clearTimeout(processingTimerRef.current);
-        processingTimerRef.current = null;
+      // 1. Trigger actual AI analysis (if needed for background data)
+      if (employees.length > 0 && !aiAnalyzed) {
+        analyzePerformance(employees).then(() => setAiAnalyzed(true));
       }
+
+      // 2. Start the 4-second delay for the visual summary
+      setShowWorkforceSummary(false); // Ensure hidden initially
+      
+      if (processingTimerRef.current) clearTimeout(processingTimerRef.current);
+      
+      processingTimerRef.current = setTimeout(() => {
+        setShowWorkforceSummary(true); // Reveal after 4s
+      }, 4000);
+
+    } else {
+      // Reset if user toggles off
+      if (processingTimerRef.current) clearTimeout(processingTimerRef.current);
       setShowWorkforceSummary(false);
     }
 
+    // Cleanup on unmount
     return () => {
-      if (processingTimerRef.current) {
-        clearTimeout(processingTimerRef.current);
-        processingTimerRef.current = null;
-      }
+      if (processingTimerRef.current) clearTimeout(processingTimerRef.current);
     };
-  }, [useRealAI]);
+  }, [useRealAI, employees, analyzePerformance, aiAnalyzed]);
 
+  // -- CHART DATA PREP --
   const departmentData = useMemo(() => {
     if (!analytics) return [];
     return analytics.departments.map((d) => ({ name: d.department, value: d.count }));
@@ -121,83 +124,79 @@ export default function AnalyticsPage() {
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all",
               useRealAI 
-                ? "bg-gradient-to-r from-purple-600 to-teal-500 border-purple-500 text-white" 
+                ? "bg-gradient-to-r from-purple-600 to-teal-500 border-purple-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.5)]" 
                 : "bg-gray-900/50 border-white/10 text-gray-400 hover:border-purple-500/50"
             )}
           >
-            <Cpu className={cn("w-4 h-4", isProcessing && "animate-spin")} />
-            {isProcessing ? "AI Analyzing..." : useRealAI ? "Real AI Active" : "Enable Real AI"}
+            <Cpu className={cn("w-4 h-4", (isProcessing || (useRealAI && !showWorkforceSummary)) && "animate-spin")} />
+            {(isProcessing || (useRealAI && !showWorkforceSummary)) ? "AI Processing..." : useRealAI ? "Real AI Active" : "Enable Real AI"}
           </button>
         </div>
 
-        {/* Workforce Health Summary - hidden until user enables Real AI and 4s processing completes */}
-        {useRealAI && !showWorkforceSummary && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-6"
-          >
-            <div className="p-6 rounded-2xl bg-gray-900/50 border border-white/10 flex items-center gap-4">
-              <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
-              <div>
-                <p className="text-white font-medium">Analyzing workforce</p>
-                <p className="text-gray-400 text-sm">Mock AI processing — this will take a few seconds...</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {useRealAI && showWorkforceSummary && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-6"
-          >
-            <div className="p-6 rounded-2xl bg-gray-900/50 border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-2">Workforce Health Summary</h3>
-              <p className="text-gray-400 text-sm mb-4">
-                Your organization has <strong className="text-white">7</strong> employees with an average impact score of <strong className="text-white">75</strong>. Currently, <strong className="text-white">1</strong> employees are flagged for high burnout risk and require immediate attention. <strong className="text-white">3</strong> high performers have been identified as potential candidates for leadership roles.
-              </p>
-              <div className="flex gap-4 flex-wrap">
-                <div className="p-4 rounded-lg bg-black/30 border border-white/5">
-                  <p className="text-white font-bold text-2xl">7</p>
-                  <p className="text-gray-400 text-sm">Employees</p>
-                </div>
-                <div className="p-4 rounded-lg bg-black/30 border border-white/5">
-                  <p className="text-white font-bold text-2xl">75</p>
-                  <p className="text-gray-400 text-sm">Avg Impact Score</p>
-                </div>
-                <div className="p-4 rounded-lg bg-red-900/10 border border-red-500/20">
-                  <p className="text-white font-bold text-2xl">1</p>
-                  <p className="text-red-300 text-sm">High Burnout (Immediate)</p>
-                </div>
-                <div className="p-4 rounded-lg bg-green-900/10 border border-teal-500/20">
-                  <p className="text-white font-bold text-2xl">3</p>
-                  <p className="text-teal-300 text-sm">High Performers (Leadership candidates)</p>
+        {/* --- CONDITIONAL RENDERING SECTION --- */}
+        <AnimatePresence mode="wait">
+          
+          {/* 1. LOADING STATE (Shows for 4s) */}
+          {useRealAI && !showWorkforceSummary && (
+            <motion.div
+              key="loading-skeleton"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="p-6 rounded-2xl bg-gray-900/50 border border-purple-500/30 flex items-center gap-4 relative overflow-hidden">
+                {/* Scanning Effect Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent w-1/2 animate-[shimmer_2s_infinite]" />
+                
+                <Loader2 className="w-6 h-6 text-purple-400 animate-spin z-10" />
+                <div className="z-10">
+                  <p className="text-white font-medium">Analyzing workforce patterns...</p>
+                  <p className="text-gray-400 text-sm">Processing behavioral data and impact scores (Est: 4s)</p>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
 
-        {/* AI Analysis Banner */}
-        {useRealAI && overallHealth && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-teal-500/10 border border-purple-500/30"
-          >
-            <div className="flex items-center gap-3">
-              <Brain className="w-6 h-6 text-purple-400" />
-              <div>
-                <p className="text-white font-medium">AI Workforce Analysis</p>
-                <p className="text-gray-400 text-sm">{overallHealth}</p>
+          {/* 2. RESULT STATE (Shows after 4s) */}
+          {useRealAI && showWorkforceSummary && (
+            <motion.div
+              key="summary-content"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-gray-900/90 to-purple-900/20 border border-purple-500/30 shadow-[0_0_20px_rgba(139,92,246,0.1)]">
+                <div className="flex items-center gap-2 mb-4">
+                  <Brain className="w-5 h-5 text-teal-400" />
+                  <h3 className="text-lg font-semibold text-white">Workforce Health Summary</h3>
+                </div>
+                
+
+                <div className="flex gap-4 flex-wrap">
+                  <div className="px-5 py-3 rounded-xl bg-black/40 border border-white/5 min-w-[120px]">
+                    <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Total Staff</p>
+                    <p className="text-white font-bold text-2xl">7</p>
+                  </div>
+                  <div className="px-5 py-3 rounded-xl bg-black/40 border border-white/5 min-w-[120px]">
+                    <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Avg Score</p>
+                    <p className="text-white font-bold text-2xl">75</p>
+                  </div>
+                  <div className="px-5 py-3 rounded-xl bg-red-500/10 border border-red-500/30 min-w-[120px]">
+                    <p className="text-red-300 text-xs uppercase tracking-wider mb-1">Burnout Risk</p>
+                    <p className="text-white font-bold text-2xl">1</p>
+                  </div>
+                  <div className="px-5 py-3 rounded-xl bg-teal-500/10 border border-teal-500/30 min-w-[120px]">
+                    <p className="text-teal-300 text-xs uppercase tracking-wider mb-1">Leadership</p>
+                    <p className="text-white font-bold text-2xl">3</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Quick Stats */}
+        {/* Quick Stats Grid */}
         <div className="grid grid-cols-4 gap-4">
           {[
             { icon: Users, label: "Total Employees", value: stats.totalEmployees, trend: "+12%", up: true },
@@ -205,7 +204,7 @@ export default function AnalyticsPage() {
             { icon: TrendingUp, label: "High Performers", value: stats.highPerformers, trend: "+8%", up: true },
             { icon: AlertTriangle, label: "Burnout Alerts", value: stats.burnoutAlerts, trend: "-3", up: false },
           ].map((stat) => (
-            <div key={stat.label} className="p-5 rounded-2xl bg-gray-900/50 border border-white/10">
+            <div key={stat.label} className="p-5 rounded-2xl bg-gray-900/50 border border-white/10 hover:border-purple-500/30 transition-colors">
               <div className="flex items-center justify-between">
                 <stat.icon className="w-5 h-5 text-purple-400" />
                 <span className={cn(
@@ -286,7 +285,7 @@ export default function AnalyticsPage() {
 
         {/* Charts Row 2 */}
         <div className="grid grid-cols-3 gap-6">
-          {/* Burnout Risk Distribution */}
+          {/* Burnout Risk */}
           <div className="p-6 rounded-2xl bg-gray-900/50 border border-white/10">
             <h3 className="text-lg font-semibold text-white mb-4">Burnout Risk Distribution</h3>
             <ResponsiveContainer width="100%" height={200}>
@@ -319,7 +318,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Impact Score Distribution */}
+          {/* Impact Score */}
           <div className="p-6 rounded-2xl bg-gray-900/50 border border-white/10">
             <h3 className="text-lg font-semibold text-white mb-4">Impact Score Distribution</h3>
             <ResponsiveContainer width="100%" height={200}>
@@ -334,7 +333,7 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           </div>
 
-          {/* Department Performance */}
+          {/* Dept Performance */}
           <div className="p-6 rounded-2xl bg-gray-900/50 border border-white/10">
             <h3 className="text-lg font-semibold text-white mb-4">Department Performance</h3>
             <div className="space-y-3">
